@@ -31,3 +31,4 @@
 *.out
 *.app
 /.vs/Red_black_tree
+/x64/Debug
