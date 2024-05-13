@@ -491,22 +491,24 @@ public:
 	iterator erase(const_iterator first, const_iterator last) {}
 
 	//  Рекурсивная печать с отступами - в "нормальном" контейнере такого быть не должно
-	void printNode(const RBTreeNode* current, int width = 0) const {
-		std::string spaces = "";
-		for (int i = 0; i < width; ++i) spaces += "  ";
+	void printNode(const RBTreeNode* current, std::string spaces = "") const {			
 		if (current == dummy) {
 			std::cout << spaces << "Dummy\n";
 			return;
 		}
-		printNode(current->right, width + 3);
+		printNode(current->right, spaces + "\t");
 		char color = current->color ? 'b' : 'r';
-		std::cout << spaces << current->data << color << std::endl;
-		printNode(current->left, width + 3);
+		if (current->parent->right == current)
+			std::cout << spaces + "/" << current->data << color << "\n";
+		else
+			std::cout << spaces + "\\" << current->data << color << "\n";
+		printNode(current->left, spaces + "\t");
 	}
 
 	void PrintTree() const {
+		std::cout << "-------------------RBTree:--------------------\n";
 		printNode(dummy->left);
-		std::cout << "********************************************************\n";
+		std::cout << "----------------------------------------------\n";
 	}
 
 private:
