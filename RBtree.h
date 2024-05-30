@@ -2,7 +2,8 @@
 
 #include<iostream>
 #include<functional>
-#include<queue>
+#include<fstream>
+#include<sstream>
 
 template<typename T, class Compare = std::less<T>, class Allocator = std::allocator<T>>
 class RBTree {
@@ -144,23 +145,32 @@ private:
 		//  Ну и всё, можно возвращать
 		return current;
 	}
-private:
+
 	RBTreeNode* GetMin(RBTreeNode* x) {
-		while (!x->left->isNul)
+		while (!x->left->isNull)
 			x = x->left;
+		return x;
 	}
 
 	RBTreeNode* GetMax(RBTreeNode* x) {
-		while (!x->right->isNul)
+		while (!x->right->isNull)
 			x = x->right;
+		return x;
 	}
 public:
 	RBTree(Compare comparator = Compare(), AllocType alloc = AllocType())
 		: dummy(make_dummy()), cmp(comparator), Alc(alloc) {}
 
 	RBTree(std::initializer_list<T> il) : RBTree() {
-		for (const T& x : il)
+		for (const auto& x : il)
 			insert(x);
+	}
+
+	template <class InputIterator>
+	RBTree(InputIterator first, InputIterator last, Compare comparator = Compare(), AllocType alloc = AllocType()) : dummy(make_dummy()), cmp(comparator), Alc(alloc)
+	{
+		while (first != last)
+			insert(*first++);
 	}
 
 	RBTree(const RBTree& tree) : RBTree() {
@@ -184,7 +194,7 @@ public:
 
 		//  Размер задаём
 		tree_size = tree.tree_size;
-		if (tree.empty()) return;
+		if (tree.empty()) return *this;
 
 		dummy->left = recur_copy_tree(tree.dummy->left, tree.dummy);
 		dummy->left->parent = dummy;
@@ -296,7 +306,7 @@ public:
 
 	void swap(RBTree& tree) {
 		std::swap(tree_size, tree.tree_size);
-		std::swap(dummy, tree->dummy);
+		std::swap(dummy, tree.dummy);
 	}
 
 private:
@@ -337,6 +347,7 @@ private:
 		x->parent = l;
 	}
 
+	///Исправляет свойства красно-черного дерева после вставки
 	void insert_fixup(RBTreeNode* x) {
 		while (!x->color && !x->parent->color) {
 			RBTreeNode* xpp = x->parent->parent;
@@ -378,7 +389,7 @@ private:
 		dummy->left->color = true;
 	}
 
-	///Вставка элемента в дерево
+	///Вставка узла в дерево
 	std::pair<iterator, bool> insert(RBTreeNode* node) {
 		RBTreeNode* x = dummy->left;
 		RBTreeNode* p = dummy;
@@ -389,7 +400,7 @@ private:
 			else if (cmp(x->data, node->data))
 				x = x->right;
 			else
-				return std::make_pair(iterator(dummy), false);
+				return std::make_pair(iterator(x), false);
 		}
 
 		if (p == dummy)
@@ -433,6 +444,12 @@ public:
 		return res;
 	}
 
+	//Вставка элемента в дерево в указанную позицию
+	iterator insert(const_iterator position, const value_type& x) {
+		std::pair<iterator, bool> p = insert(x);
+		return p.first;
+	}
+
 	//Вставка диапазона
 	template <class InputIterator>
 	void insert(InputIterator first, InputIterator last) {
@@ -455,42 +472,201 @@ public:
 	}	
 
 	//Итeратор на наибольший элемент, меньший или равный заданному
-	iterator lower_bound(const value_type& key) const {}
+	iterator lower_bound(const value_type& key) const {
+		RBTreeNode* res = dummy;
+		RBTreeNode* cur = dummy->left;
+
+		while (!cur->isNull) {
+			if (!cmp(key, cur->data)) {
+				res = cur;
+				cur = cur->right;
+			}
+			else
+				cur = cur->left;
+		}
+		return iterator(res);
+	}
 
 	//Итeратор на наименьший элемент, больший или равный заданному
-	iterator upper_bound(const value_type& key) const {}
+	iterator upper_bound(const value_type& key) const {
+		RBTreeNode* res = dummy;
+		RBTreeNode* cur = dummy->left;
 
-	//Зачем?
+		while (!cur->isNull) {
+			if (cmp(key, cur->data)) {
+				res = cur;
+				cur = cur->left;
+			}
+			else
+				cur = cur->right;
+		}
+		return iterator(res);
+	}
+	
 	size_type count(const value_type& key) const {
 		return find(key) != end() ? 1 : 0;
 	}
-
-	//Че делает?
+	
 	std::pair<const_iterator, const_iterator> equal_range(const value_type& key) const {
-		const_iterator current{ dummy->left }, left{ dummy->left }, right{ dummy->left };
-		while (!current.isNull()) {
-			if (!cmp(key, *current)) {
+		RBTreeNode* current = dummy->left; 
+		RBTreeNode* left = dummy->left; 
+		RBTreeNode* right = dummy->left;
+		while (!current->isNull) {
+			if (!cmp(key, current->data)) {
 				left = current;
-				current = current.Right();
+				current = current->right;
 			}
 			else {
 				right = current;
-				current = current.Left();
+				current = current->left;
 			}
 		}
-		return std::make_pair(left, right);
+		return std::make_pair(iterator(left), iterator(right));
 	}
 
+private:
+	///Перемещает поддерево y, на место поддерева x
+	void transplant(RBTreeNode* x, RBTreeNode* y) {				
+		if (x == dummy->left)
+			dummy->left = y;
+		else if (x == x->parent->left)
+			x->parent->left = y;
+		else
+			x->parent->right = y;
+		y->parent = x->parent;
+	}
+
+	///Восстанавливает свойства красно-черного дерева, после удаления элемента
+	void erase_fixup(RBTreeNode* x) {
+		while (x != dummy->left && x->color) {
+			if (x == x->parent->left) {
+				RBTreeNode* br = x->parent->right;
+				//брат красный
+				if (!br->color) {
+					br->color = true;
+					br->parent->color = false;
+					left_rotate(br->parent);
+					br = x->parent->right;
+				}
+				//оба племянника черные, брат черный
+				if (br->left->color && br->right->color) {
+					br->color = false;
+					x = x->parent;
+				}				 
+				else {
+					if (br->right->color) {
+						br->color = false;
+						br->left->color = true;
+						right_rotate(br);
+						br = x->parent->right;
+					}
+					br->color = x->parent->color;
+					br->right->color = true;
+					x->parent->color = true;
+					left_rotate(x->parent);
+					x = dummy->left;
+				}					
+			}
+			else {
+				RBTreeNode* br = x->parent->left;
+				//брат красный
+				if (!br->color) {
+					br->color = true;
+					br->parent->color = false;
+					right_rotate(br->parent);
+					br = x->parent->left;
+				}
+				//брат черный и племяники черные
+				if (br->left->color && br->right->color) {
+					br->color = false;
+					x = x->parent;
+				}
+				else {
+					if (br->left->color) {
+						br->color = false;
+						br->right->color = true;
+						left_rotate(br);
+						br = x->parent->right;
+					}
+					br->color = x->parent->color;
+					br->left->color = true;
+					x->parent->color = true;
+					right_rotate(x->parent);
+					x = dummy->left;
+				}
+			}
+		}
+		x->color = true;
+	}
+public:
 	//  Удаление элемента, заданного итератором. Возвращает следующий элемент после удаленного
-	iterator erase(iterator elem) {}
+	iterator erase(iterator elem) {
+		RBTreeNode* del_node = elem.node;
+		if (del_node->isNull)
+			return elem;
+
+		iterator res { ++elem };
+		
+		RBTreeNode* moved_node = del_node;
+		bool original_color = moved_node->color;
+		RBTreeNode* breaked_node;
+		if (del_node->left->isNull) {
+			breaked_node = del_node->right;
+			//Если минимальный
+			if (del_node == dummy->right) {
+				if (!breaked_node->isNull)
+					dummy->right = GetMin(breaked_node);
+				else
+					dummy->right = del_node->parent;
+			}				
+			transplant(del_node, breaked_node);
+		}			
+		else if (del_node->right->isNull) {
+			breaked_node = del_node->left;			
+			transplant(del_node, breaked_node);			
+		}			
+		else {
+			moved_node = GetMin(del_node->right);
+			original_color = moved_node->color;
+			breaked_node = moved_node->right;
+
+			if (moved_node->parent != del_node) {
+				transplant(moved_node, breaked_node);
+				moved_node->right = del_node->right;
+				moved_node->right->parent = moved_node;
+			}						
+			transplant(del_node, moved_node);
+			moved_node->left = del_node->left;
+			moved_node->left->parent = moved_node;
+			moved_node->color = del_node->color;
+		}
+		//Если черный удаляем
+		if (original_color)
+			erase_fixup(breaked_node);		
+		delete_node(del_node);
+		//Только максимальный может поломаться
+		dummy->parent = GetMax(dummy->left);
+		tree_size--;
+		return res;
+	}
 
 	//Удаляет элемент со значением elem, если его нет возвращает 0, иначе 1
-	size_type erase(const value_type& elem) {}
+	size_type erase(const value_type& elem) {
+		auto it = find(elem);
+		if (it == end())
+			return 0;
+		erase(it);
+		return 1;
+	}
+	
+	iterator erase(const_iterator first, const_iterator last) {		
+		while (first != last)
+			first = erase(first);
+		return first;
+	}
 
-	//  Проверить!!!
-	iterator erase(const_iterator first, const_iterator last) {}
-
-	//  Рекурсивная печать с отступами - в "нормальном" контейнере такого быть не должно
+private:
+	/// Печать поддерева с отступами
 	void printNode(const RBTreeNode* current, std::string spaces = "") const {			
 		if (current == dummy) {
 			std::cout << spaces << "Dummy\n";
@@ -504,7 +680,8 @@ public:
 			std::cout << spaces + "\\" << current->data << color << "\n";
 		printNode(current->left, spaces + "\t");
 	}
-
+public:
+	//Выводит красно-черное дерево в консоль
 	void PrintTree() const {
 		std::cout << "-------------------RBTree:--------------------\n";
 		printNode(dummy->left);
@@ -512,16 +689,86 @@ public:
 	}
 
 private:
-	bool recur_equal(RBTreeNode* root1, RBTreeNode* root2) const {}
+	//Сохраняет поддерево в файл
+	void serialize(RBTreeNode* node, std::ofstream& file, char separator) {
+		if (node == dummy)
+			return;
+		file << node->data << separator << node->color << separator;
+		serialize(node->left, file, separator);
+		serialize(node->right, file, separator);
+	}
+	
 public:
-	///Рекурсивное сравнение двух деревьев по элементам и по структуре
-	bool isEqualTo(const RBTree<T>& tree) const {
+	//Сохраняет красно-черное дерево в файл
+	void serialize(std::ofstream& file, char separator = ';') {
+		serialize(dummy->left, file, separator);
+	}
+
+	//Считывает дерево из файла
+	void deserialize(std::ifstream& file, char separator = ';') {
+		clear();		
+		std::string str_data;
+		std::string str_color;
+		while (std::getline(file, str_data, separator)) {
+			std::stringstream data_buf(str_data);
+			value_type data;			
+			data_buf >> data;			
+
+			std::getline(file, str_color, separator);
+			std::stringstream color_buf(str_color);
+			bool color;
+			color_buf >> color;
+			
+			RBTreeNode* node = make_node(std::move(data), dummy, dummy, dummy, color);
+
+			//Нахожу позицию
+			RBTreeNode* x = dummy->left;
+			RBTreeNode* p = dummy;
+			while (x != dummy) {
+				p = x;
+				if (cmp(node->data, x->data))
+					x = x->left;
+				else
+					x = x->right;			
+			}
+			//Вставляю
+			if (p == dummy)
+				dummy->left = node;
+			else if (cmp(node->data, p->data)) {
+				p->left = node;				
+			}
+			else {
+				p->right = node;				
+			}
+			node->parent = p;			
+			tree_size++;
+		}
+		dummy->parent = GetMax(dummy->left);
+		dummy->right = GetMin(dummy->left);
+	}
+
+private:
+	bool recur_equal(RBTreeNode* root1, RBTreeNode* root2) const {
+		if (root1->isNull && root2->isNull)
+			return true;
+		if (!root1->isNull && !root2->isNull)
+			if (root1->color == root2->color && !cmp(root1->data, root2->data) && !cmp(root2->data, root1->data))
+				return recur_equal(root1->left, root2->left) && recur_equal(root1->right, root2->right);
+		return false;
+	}
+public:
+	///Равенство двух деревьев и по элементам, и по структуре
+	bool isEqualTo(const RBTree<T>& tree) {
 		return recur_equal(dummy->left, tree.dummy->left);
 	}
 
-	//Если передавать по ссылкам,все хорошо. Конструктор копий принескольких деревьях ломается.
+	///Равенство двух деревьев по элементам
 	friend bool operator==(const RBTree<T>& tree_1, const RBTree<T>& tree_2) {
-		return tree_1.isEqualTo(tree_2);
+		iterator it1{ tree_1.begin() }, it2{ tree_2.begin() };
+		while (it1 != tree_1.end() && it2 != tree_2.end() && *it1 == *it2) {
+			++it1; ++it2;
+		}		
+		return it1 == tree_1.end() && it2 == tree_2.end();
 	}
 
 private:
@@ -552,8 +799,6 @@ template <class Key, class Compare, class Allocator>
 void swap(RBTree<Key, Compare, Allocator>& x, RBTree<Key, Compare, Allocator>& y) noexcept(noexcept(x.swap(y))) {
 	x.swap(y);
 };
-
-//Посмотреть, что в заготовке происходит и зачем вообще эта хуйня нужна:
 
 template <class Key, class Compare, class Allocator>
 bool operator==(const RBTree<Key, Compare, Allocator>& x, const RBTree<Key, Compare, Allocator>& y) {

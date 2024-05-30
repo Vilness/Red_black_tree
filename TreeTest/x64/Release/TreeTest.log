@@ -1,0 +1,8 @@
+﻿  Tests.cpp
+LINK : warning LNK4075: ignoring '/INCREMENTAL' due to '/LTCG' specification
+     Creating library C:\Users\ivan_\OneDrive\Рабочий стол\Прога\4 семестр\ASD\Red_black_tree\x64\Release\TreeTest.lib and object C:\Users\ivan_\OneDrive\Рабочий стол\Прога\4 семестр\ASD\Red_black_tree\x64\Release\TreeTest.exp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 841 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  TreeTest.vcxproj -> C:\Users\ivan_\OneDrive\Рабочий стол\Прога\4 семестр\ASD\Red_black_tree\x64\Release\TreeTest.dll

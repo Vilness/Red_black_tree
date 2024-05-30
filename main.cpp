@@ -1,21 +1,17 @@
 #include <iostream>
 #include "RBTree.h"
+#include "tests.h"
+#include <fstream>
+
+using std::cout;
 
 int main() {
-	RBTree<int> tree;
-	tree.insert(0);
-	tree.PrintTree();
+	setlocale(LC_ALL, "Russian");
+	
+	//cmd_insert_tests();
+	//cmd_erase_tests();
+	//file_tests();
 
-	tree.insert(0);
-	tree.PrintTree();
-
-	tree.insert(-1);
-	tree.insert(2);
-	tree.PrintTree();
-
-	tree.insert(-2);	
-	tree.PrintTree();
-
-	tree.insert(-3);
-	tree.PrintTree();
+	time_tests(10000);
+	time_tests(10000000);
 }
